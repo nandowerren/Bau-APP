@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>DN Bau App</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --dark:    #1E2A35;
+    --navy:    #1A5276;
+    --blue:    #2980B9;
+    --accent:  #E67E22;
+    --green:   #27AE60;
+    --red:     #E74C3C;
+    --grey:    #95A5A6;
+    --bg:      #F0F3F7;
+    --surface: #FFFFFF;
+    --border:  #DDE3EA;
+    --text:    #2C3E50;
+    --muted:   #7F8C8D;
+    --lightblue: #EBF5FB;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: -apple-system, 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* ── LAYOUT ── */
+  .app { display: flex; flex-direction: column; min-height: 100vh; }
+  .main { flex: 1; padding-bottom: 80px; }
+
+  /* ── TOP BAR ── */
+  .topbar {
+    background: var(--dark);
+    padding: 0 16px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky; top: 0; z-index: 200;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 10px; }
+  .topbar-logo { font-size: 20px; }
+  .topbar-title { color: #fff; font-weight: 800; font-size: 16px; letter-spacing: -0.3px; }
+  .topbar-badge { background: var(--accent); color: #fff; border-radius: 6px; padding: 2px 7px; font-size: 10px; font-weight: 700; }
+  .topbar-date { color: #ffffff60; font-size: 11px; }
+
+  /* ── BOTTOM NAV ── */
+  .bottomnav {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex;
+    z-index: 200;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .nav-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    padding: 8px 4px 6px;
+    cursor: pointer; border: none; background: transparent;
+    color: var(--muted); font-size: 10px; font-weight: 500;
+    transition: color 0.15s;
+    gap: 3px;
+  }
+  .nav-item.active { color: var(--navy); }
+  .nav-item .nav-icon { font-size: 22px; line-height: 1; }
+  .nav-item .nav-dot {
+    width: 4px; height: 4px; border-radius: 50%;
+    background: var(--accent);
+    display: none;
+  }
+  .nav-item.active .nav-dot { display: block; }
+
+  /* ── SCREENS ── */
+  .screen { display: none; padding: 16px; max-width: 680px; margin: 0 auto; }
+  .screen.active { display: block; }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 1px 4px #0001;
+  }
+  .card-title {
+    font-size: 13px; font-weight: 700; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.8px;
+    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  /* ── STAT ROW ── */
+  .stat-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 14px; }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 12px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .stat-icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .stat-num { font-size: 22px; font-weight: 800; color: var(--dark); line-height: 1; }
+  .stat-label { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+  /* ── ENTRY CARD ── */
+  .entry {
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--navy);
+    border-radius: 8px;
+    padding: 11px 13px;
+    margin-bottom: 8px;
+    background: var(--surface);
+    cursor: pointer;
+  }
+  .entry-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .entry-bkp { font-size: 11px; font-weight: 700; color: var(--accent); min-width: 32px; }
+  .entry-name { font-size: 13px; font-weight: 600; color: var(--dark); flex: 1; }
+  .entry-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .entry-detail { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); display: none; }
+  .entry-detail.open { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+  .detail-item label { font-size: 10px; color: var(--muted); display: block; }
+  .detail-item a, .detail-item span { font-size: 12px; font-weight: 600; color: var(--dark); text-decoration: none; }
+  .detail-item a { color: var(--blue); }
+
+  /* ── PILLS ── */
+  .pill {
+    display: inline-flex; align-items: center;
+    border-radius: 20px; padding: 2px 9px;
+    font-size: 10px; font-weight: 700;
+    white-space: nowrap;
+  }
+
+  /* ── CONTRACTOR CARD ── */
+  .contractor {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--blue);
+    border-radius: 8px;
+    padding: 13px 14px;
+    margin-bottom: 10px;
+  }
+  .contractor-top { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px; }
+  .contractor-name { font-size: 14px; font-weight: 700; color: var(--dark); }
+  .contractor-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .action-btn {
+    padding: 5px 10px; border-radius: 7px;
+    font-size: 11px; font-weight: 600;
+    text-decoration: none; border: none; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .contractor-tags { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 5px; }
+
+  /* ── SECTION HEADER ── */
+  .section-header {
+    display: flex; align-items: center; gap: 8px;
+    margin: 20px 0 10px;
+  }
+  .section-header h3 { font-size: 14px; font-weight: 700; color: var(--dark); }
+
+  /* ── MONTH GROUP ── */
+  .month-label {
+    font-size: 11px; font-weight: 700; color: var(--navy);
+    text-transform: uppercase; letter-spacing: 1px;
+    padding: 5px 10px; background: var(--lightblue);
+    border-radius: 6px; margin: 16px 0 8px;
+  }
+
+  /* ── UPLOAD AREA ── */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 14px;
+    padding: 36px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--surface);
+    margin-bottom: 14px;
+  }
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: #fef9e7; }
+  .upload-icon { font-size: 36px; margin-bottom: 10px; }
+  .upload-title { font-size: 15px; font-weight: 700; color: var(--dark); margin-bottom: 6px; }
+  .upload-sub { font-size: 12px; color: var(--muted); }
+  .upload-btn {
+    margin-top: 16px;
+    background: var(--navy); color: #fff;
+    border: none; border-radius: 8px;
+    padding: 10px 24px; font-size: 13px; font-weight: 600;
+    cursor: pointer; display: inline-block;
+  }
+
+  /* ── TABS ── */
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; background: var(--surface); border-radius: 10px; padding: 4px; border: 1px solid var(--border); }
+  .tab {
+    flex: 1; padding: 8px 6px; border: none; border-radius: 7px;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    background: transparent; color: var(--muted); transition: all 0.15s;
+  }
+  .tab.active { background: var(--navy); color: #fff; }
+
+  /* ── VOHR ORT ── */
+  .objekt-search {
+    width: 100%; padding: 12px 14px;
+    border: 1.5px solid var(--border); border-radius: 10px;
+    font-size: 14px; background: var(--surface);
+    outline: none; margin-bottom: 10px;
+    transition: border-color 0.15s;
+  }
+  .objekt-search:focus { border-color: var(--navy); }
+  .objekt-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+  .objekt-item {
+    padding: 12px 14px; border-radius: 10px;
+    background: var(--surface); border: 1.5px solid var(--border);
+    cursor: pointer; display: flex; align-items: center; gap: 10px;
+    transition: border-color 0.15s;
+  }
+  .objekt-item:hover, .objekt-item.selected { border-color: var(--navy); background: var(--lightblue); }
+  .objekt-icon { font-size: 20px; }
+  .objekt-name { font-size: 13px; font-weight: 600; color: var(--dark); }
+  .objekt-addr { font-size: 11px; color: var(--muted); }
+
+  /* ── FOTO ERFASSEN ── */
+  .foto-form { display: flex; flex-direction: column; gap: 12px; }
+  .form-label { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; display: block; }
+  .form-input {
+    width: 100%; padding: 11px 13px;
+    border: 1.5px solid var(--border); border-radius: 9px;
+    font-size: 13px; background: var(--surface);
+    outline: none; transition: border-color 0.15s;
+  }
+  .form-input:focus { border-color: var(--navy); }
+  .kat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .kat-btn {
+    padding: 10px 8px; border-radius: 9px;
+    border: 2px solid var(--border); background: var(--surface);
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    text-align: center; transition: all 0.15s; color: var(--muted);
+  }
+  .kat-btn.selected { border-color: var(--navy); background: var(--lightblue); color: var(--navy); }
+
+  .foto-preview {
+    width: 100%; height: 200px; border-radius: 12px;
+    object-fit: cover; border: 2px solid var(--border);
+    display: none;
+  }
+  .foto-placeholder {
+    width: 100%; height: 160px; border-radius: 12px;
+    border: 2px dashed var(--border); background: var(--surface);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    cursor: pointer; color: var(--muted); gap: 6px;
+    font-size: 13px;
+  }
+  .foto-placeholder span { font-size: 36px; }
+
+  .save-btn {
+    width: 100%; padding: 14px;
+    background: var(--navy); color: #fff;
+    border: none; border-radius: 10px;
+    font-size: 15px; font-weight: 700; cursor: pointer;
+    transition: background 0.15s;
+  }
+  .save-btn:hover { background: var(--dark); }
+  .save-btn:disabled { background: var(--grey); cursor: default; }
+
+  /* ── FOTO LOG ── */
+  .foto-log { display: flex; flex-direction: column; gap: 8px; }
+  .foto-entry {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+    display: flex; gap: 0;
+  }
+  .foto-thumb {
+    width: 70px; height: 70px; object-fit: cover; flex-shrink: 0;
+  }
+  .foto-thumb-placeholder {
+    width: 70px; height: 70px; background: var(--lightblue);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; flex-shrink: 0;
+  }
+  .foto-info { padding: 10px 12px; flex: 1; }
+  .foto-kat { font-size: 10px; font-weight: 700; }
+  .foto-desc { font-size: 12px; color: var(--dark); font-weight: 500; margin-top: 2px; }
+  .foto-meta { font-size: 10px; color: var(--muted); margin-top: 4px; }
+
+  /* ── EMPTY STATE ── */
+  .empty { text-align: center; padding: 48px 20px; color: var(--muted); }
+  .empty-icon { font-size: 44px; margin-bottom: 12px; }
+  .empty-title { font-size: 15px; font-weight: 700; color: var(--dark); margin-bottom: 6px; }
+  .empty-sub { font-size: 12px; line-height: 1.5; }
+
+  /* ── TOAST ── */
+  .toast {
+    position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+    background: var(--dark); color: #fff;
+    padding: 10px 20px; border-radius: 30px;
+    font-size: 13px; font-weight: 600;
+    z-index: 999; opacity: 0; transition: opacity 0.3s;
+    white-space: nowrap; pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+
+  /* ── KW BADGE ── */
+  .kw-badge {
+    background: var(--navy); color: #fff;
+    border-radius: 8px; padding: 3px 10px;
+    font-size: 12px; font-weight: 700;
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (min-width: 600px) {
+    .stat-row { grid-template-columns: repeat(4, 1fr); }
+    .kat-grid { grid-template-columns: repeat(4, 1fr); }
+    .screen { padding: 20px; }
+  }
+</style>
+</head>
+<body>
+<!-- FOTO SAVED MODAL -->
+<div id="foto-saved-modal" style="display:none;position:fixed;inset:0;background:#0008;z-index:500;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border-radius:16px;padding:24px;max-width:400px;width:100%;box-shadow:0 8px 32px #0004">
+    <div style="font-size:32px;text-align:center;margin-bottom:12px">✅</div>
+    <div style="font-weight:800;font-size:17px;color:var(--dark);text-align:center;margin-bottom:4px">Eintrag gespeichert!</div>
+    <div style="font-size:12px;color:var(--muted);text-align:center;margin-bottom:16px">Lokal gespeichert — jetzt in OneDrive hochladen</div>
+
+    <img id="modal-foto-prev" style="width:100%;border-radius:10px;margin-bottom:14px;max-height:200px;object-fit:cover" alt="Foto"/>
+
+    <div style="background:var(--lightblue);border-radius:10px;padding:12px;margin-bottom:16px;font-size:12px">
+      <div style="color:var(--muted);font-size:10px;margin-bottom:4px">SPEICHERN IN</div>
+      <div style="font-weight:700;color:var(--navy)">📁 04_RF_NR / <span id="modal-objekt"></span> / Fotos</div>
+      <div style="margin-top:6px;color:var(--muted)">
+        <span id="modal-kat" style="font-weight:600;color:var(--accent)"></span> — <span id="modal-desc"></span>
+      </div>
+    </div>
+
+    <a id="modal-link" href="#" target="_blank" style="display:block;width:100%;padding:13px;background:var(--navy);color:#fff;border-radius:10px;font-weight:700;font-size:14px;text-align:center;text-decoration:none;margin-bottom:10px">
+      ☁ Ordner in OneDrive öffnen
+    </a>
+    <div style="font-size:11px;color:var(--muted);text-align:center;margin-bottom:14px">
+      Foto dort hochladen → "Erstellen oder hochladen" → Dieses Foto wählen
+    </div>
+    <button onclick="document.getElementById('foto-saved-modal').style.display='none'" style="width:100%;padding:11px;border-radius:10px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer">
+      Schliessen
+    </button>
+  </div>
+</div>
+
+<div class="app">
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <span class="topbar-logo">🏗</span>
+      <span class="topbar-title">DN Bau</span>
+      <span class="topbar-badge">2026</span>
+    </div>
+    <span class="topbar-date" id="topbar-date"></span>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- ══ SCREEN: DASHBOARD ══ -->
+    <div class="screen active" id="screen-dashboard">
+      <div style="margin-bottom:16px">
+        <div style="font-size:20px;font-weight:800;color:var(--dark)" id="dash-greeting">Guten Morgen</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:2px" id="dash-sub">Heute ist Mittwoch, 10. Juni 2026</div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stat-row" id="dash-stats">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#1A527618">📅</div>
+          <div><div class="stat-num" id="stat-woche">–</div><div class="stat-label">Gewerke diese Woche</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#27AE6018">▶</div>
+          <div><div class="stat-num" id="stat-start">–</div><div class="stat-label">Starten diese Woche</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#E67E2218">🏁</div>
+          <div><div class="stat-num" id="stat-end">–</div><div class="stat-label">Enden diese Woche</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#2980B918">👷</div>
+          <div><div class="stat-num" id="stat-un">–</div><div class="stat-label">Aktive Unternehmer</div></div>
+        </div>
+      </div>
+
+      <!-- Kein Bauprogramm -->
+      <div id="dash-no-bp" class="card" style="text-align:center;padding:28px 16px">
+        <div style="font-size:36px;margin-bottom:10px">📋</div>
+        <div style="font-weight:700;color:var(--dark);margin-bottom:6px">Kein Bauprogramm geladen</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Lade dein Bauprogramm-Excel im Tab "Bauprogramm" hoch</div>
+        <button class="upload-btn" onclick="switchScreen('bauprogramm')" style="margin-top:0">Jetzt hochladen</button>
+      </div>
+
+      <!-- Aktive Unternehmer -->
+      <div id="dash-contractors" style="display:none">
+        <div class="section-header">
+          <h3>👷 Aktive Unternehmer diese Woche</h3>
+          <span class="kw-badge" id="dash-kw">KW –</span>
+        </div>
+        <div id="dash-contractor-list"></div>
+
+        <div class="section-header" style="margin-top:20px">
+          <h3>⚙ Gewerke diese Woche</h3>
+        </div>
+        <div id="dash-entry-list"></div>
+      </div>
+
+      <!-- Fotos heute -->
+      <div style="margin-top:4px">
+        <div class="section-header">
+          <h3>📷 Letzte Fotos</h3>
+        </div>
+        <div id="dash-foto-list">
+          <div class="empty">
+            <div class="empty-icon">📷</div>
+            <div class="empty-title">Noch keine Fotos</div>
+            <div class="empty-sub">Geh auf "Vor Ort" um Fotos zu erfassen</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ SCREEN: BAUPROGRAMM ══ -->
+    <div class="screen" id="screen-bauprogramm">
+      <div style="font-size:20px;font-weight:800;color:var(--dark);margin-bottom:4px">Bauprogramm</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:16px">Excel hochladen und Übersicht anzeigen</div>
+
+      <!-- Upload -->
+      <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()"
+        ondragover="event.preventDefault();this.classList.add('drag')"
+        ondragleave="this.classList.remove('drag')"
+        ondrop="handleDrop(event)">
+        <div class="upload-icon">📂</div>
+        <div class="upload-title" id="upload-title">Bauprogramm hochladen</div>
+        <div class="upload-sub" id="upload-sub">Bauprogramm_2026.xlsx hier ablegen oder klicken</div>
+        <button class="upload-btn" onclick="event.stopPropagation()">Datei wählen</button>
+        <input type="file" id="file-input" accept=".xlsx" style="display:none" onchange="handleFile(this.files[0])"/>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs" id="bp-tabs" style="display:none">
+        <button class="tab active" onclick="bpTab('woche',this)">Diese Woche</button>
+        <button class="tab" onclick="bpTab('start',this)">▶ Startet</button>
+        <button class="tab" onclick="bpTab('end',this)">🏁 Endet</button>
+        <button class="tab" onclick="bpTab('alle',this)">Alle</button>
+      </div>
+
+      <div id="bp-content"></div>
+    </div>
+
+    <!-- ══ SCREEN: VOR ORT ══ -->
+    <div class="screen" id="screen-vorort">
+      <div style="font-size:20px;font-weight:800;color:var(--dark);margin-bottom:4px">Vor Ort</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:16px">Objekt wählen und Fotos erfassen</div>
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab active" onclick="vorortTab('erfassen',this)">📷 Erfassen</button>
+        <button class="tab" onclick="vorortTab('log',this)">🗂 Verlauf</button>
+      </div>
+
+      <!-- Erfassen -->
+      <div id="vorort-erfassen">
+        <!-- Objekt wählen -->
+        <div class="card" style="margin-bottom:14px">
+          <div class="card-title">🏠 Objekt wählen</div>
+          <input class="objekt-search" type="text" placeholder="Adresse oder Name suchen…" oninput="filterObjekte(this.value)" id="objekt-search"/>
+          <div class="objekt-list" id="objekt-list"></div>
+          <button onclick="neuesObjekt()" style="width:100%;padding:9px;border-radius:8px;border:1.5px dashed var(--border);background:transparent;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer">+ Neues Objekt hinzufügen</button>
+        </div>
+
+        <!-- Foto Form -->
+        <div class="card" id="foto-card" style="display:none">
+          <div class="card-title">📷 <span id="foto-objekt-name">Objekt</span></div>
+          <div class="foto-form">
+            <!-- Kategorie -->
+            <div>
+              <label class="form-label">Kategorie</label>
+              <div class="kat-grid" id="kat-grid">
+                <button class="kat-btn selected" onclick="selectKat(this,'Mangel')">🔴 Mangel</button>
+                <button class="kat-btn" onclick="selectKat(this,'Rapport')">📋 Rapport</button>
+                <button class="kat-btn" onclick="selectKat(this,'Abnahme')">✅ Abnahme</button>
+                <button class="kat-btn" onclick="selectKat(this,'Allgemein')">📌 Allgemein</button>
+              </div>
+            </div>
+
+            <!-- Foto -->
+            <div>
+              <label class="form-label">Foto</label>
+              <div class="foto-placeholder" id="foto-placeholder" onclick="document.getElementById('foto-input').click()">
+                <span>📷</span>
+                Foto aufnehmen oder wählen
+              </div>
+              <img class="foto-preview" id="foto-preview" alt="Vorschau"/>
+              <input type="file" id="foto-input" accept="image/*" capture="environment" style="display:none" onchange="handleFoto(this)"/>
+            </div>
+
+            <!-- Beschriftung -->
+            <div>
+              <label class="form-label">Beschriftung</label>
+              <input class="form-input" type="text" id="foto-desc" placeholder="z.B. Riss in Aussenwand OG links"/>
+            </div>
+
+            <!-- Gewerk (optional) -->
+            <div>
+              <label class="form-label">Gewerk (optional)</label>
+              <input class="form-input" type="text" id="foto-gewerk" placeholder="z.B. Baumeister, Maler…"/>
+            </div>
+
+            <button class="save-btn" onclick="saveFoto()" id="save-btn">Eintrag speichern</button>
+
+            <div style="font-size:11px;color:var(--muted);text-align:center">
+              Fotos werden lokal gespeichert. Für SharePoint-Anbindung: Phase 2.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Log -->
+      <div id="vorort-log" style="display:none">
+        <div class="foto-log" id="foto-log-list"></div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+
+  <!-- BOTTOM NAV -->
+  <nav class="bottomnav">
+    <button class="nav-item active" onclick="switchScreen('dashboard')" id="nav-dashboard">
+      <span class="nav-icon">🏠</span>
+      <span>Dashboard</span>
+      <span class="nav-dot"></span>
+    </button>
+    <button class="nav-item" onclick="switchScreen('bauprogramm')" id="nav-bauprogramm">
+      <span class="nav-icon">📅</span>
+      <span>Bauprogramm</span>
+      <span class="nav-dot"></span>
+    </button>
+    <button class="nav-item" onclick="switchScreen('vorort')" id="nav-vorort">
+      <span class="nav-icon">📷</span>
+      <span>Vor Ort</span>
+      <span class="nav-dot"></span>
+    </button>
+  </nav>
+
+</div><!-- /app -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// ONEDRIVE FOLDER LINKS (direkte Links zu den Ordnern bei Fahrni, Urs)
+// ══════════════════════════════════════════════════════════════
+// Basis-URL zum geteilten 04_RF_NR Ordner
+const ONEDRIVE_BASE = 'https://kablan-my.sharepoint.com/personal/u_fahrni_kablan_ch/_layouts/15/onedrive.aspx?id=%2Fpersonal%2Fu_fahrni_kablan_ch%2FDocuments%2F04_RF_NR';
+
+function getOneDriveLink(objektName) {
+  // Encode Objektname für URL
+  const encoded = encodeURIComponent('/' + objektName + '/Fotos');
+  return ONEDRIVE_BASE + encoded;
+}
+
+function showFotoSaved(objekt, kat, desc, fotoData) {
+  const link = getOneDriveLink(objekt.name);
+  const modal = document.getElementById('foto-saved-modal');
+  document.getElementById('modal-objekt').textContent = objekt.name;
+  document.getElementById('modal-kat').textContent = kat;
+  document.getElementById('modal-desc').textContent = desc || '–';
+  document.getElementById('modal-link').href = link;
+
+  const prev = document.getElementById('modal-foto-prev');
+  if (fotoData) { prev.src = fotoData; prev.style.display = 'block'; }
+  else { prev.style.display = 'none'; }
+
+  modal.style.cssText = 'display:flex;position:fixed;inset:0;background:#0008;z-index:500;align-items:center;justify-content:center;padding:16px';
+}
+
+// ══════════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════════
+let allEntries = [];
+let currentKat = 'Mangel';
+let currentObjekt = null;
+let currentFotoData = null;
+let fotoLog = JSON.parse(localStorage.getItem('fotoLog') || '[]');
+let objekte = JSON.parse(localStorage.getItem('objekte') || JSON.stringify([
+  { id: 1, name: 'DN Immobilien AG',  adresse: '3072 Ostermundigen', kuerzel: 'DN' },
+  { id: 2, name: 'NR Immohome AG',    adresse: '3076 Worb',          kuerzel: 'NR' },
+  { id: 3, name: 'RF Immobilien AG',  adresse: '3066 Stettlen',      kuerzel: 'RF' },
+  { id: 4, name: 'RÖH',              adresse: '',                   kuerzel: 'RÖH' },
+  { id: 5, name: 'Nando Werren',      adresse: '',                   kuerzel: 'NW' },
+]));
+
+// ══════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════
+const MONTHS = { Jan:1,Feb:2,'Mär':3,Apr:4,Mai:5,Jun:6,Jul:7,Aug:8,Sep:9,Okt:10,Nov:11,Dez:12 };
+const MONTH_NAMES = ['','Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+
+function init() {
+  const now = new Date();
+  const days = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
+  const months = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+  const h = now.getHours();
+  const greeting = h < 12 ? 'Guten Morgen' : h < 18 ? 'Guten Tag' : 'Guten Abend';
+  document.getElementById('dash-greeting').textContent = greeting + ', Nando';
+  document.getElementById('dash-sub').textContent = `${days[now.getDay()]}, ${now.getDate()}. ${months[now.getMonth()]} ${now.getFullYear()}`;
+  document.getElementById('topbar-date').textContent = `KW ${getISOWeek(now)}`;
+
+  renderObjekte('');
+  renderFotoLog();
+  renderDashFotos();
+}
+
+// ══════════════════════════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════════════════════════
+function switchScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+}
+
+// ══════════════════════════════════════════════════════════════
+// DATE HELPERS
+// ══════════════════════════════════════════════════════════════
+function getISOWeek(d) {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));
+  const y = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  return Math.ceil((((date - y) / 86400000) + 1) / 7);
+}
+
+function getMonday(d) {
+  const date = new Date(d);
+  const day = date.getDay();
+  date.setDate(date.getDate() - day + (day === 0 ? -6 : 1));
+  date.setHours(0,0,0,0);
+  return date;
+}
+
+function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
+function fmtDate(d) { return `${d.getDate().toString().padStart(2,'0')}.${(d.getMonth()+1).toString().padStart(2,'0')}.`; }
+
+function parseDate(y, m, day) { return new Date(y, m-1, day); }
+
+// ══════════════════════════════════════════════════════════════
+// EXCEL PARSER
+// ══════════════════════════════════════════════════════════════
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('upload-zone').classList.remove('drag');
+  handleFile(e.dataTransfer.files[0]);
+}
+
+function handleFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const data = new Uint8Array(e.target.result);
+    const wb = XLSX.read(data, { type: 'array' });
+    allEntries = parseBauprogramm(wb);
+    document.getElementById('upload-title').textContent = '✓ ' + file.name;
+    document.getElementById('upload-sub').textContent = allEntries.length + ' Gewerke geladen';
+    document.getElementById('upload-zone').style.borderColor = 'var(--green)';
+    document.getElementById('bp-tabs').style.display = 'flex';
+    bpTab('woche', document.querySelector('.tab.active'));
+    updateDashboard();
+    showToast('✓ Bauprogramm geladen — ' + allEntries.length + ' Einträge');
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseBauprogramm(wb) {
+  const entries = [];
+  const year = 2026;
+  for (const sn of wb.SheetNames) {
+    const mNum = MONTHS[sn];
+    if (!mNum) continue;
+    const ws = wb.Sheets[sn];
+    const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+    const dayRow = data[10] || [];
+    const dayColMap = {};
+    for (let ci = 5; ci < dayRow.length; ci += 2) {
+      const v = dayRow[ci];
+      if (v !== null && v !== undefined) {
+        const d = parseInt(String(v).trim());
+        if (!isNaN(d) && d >= 1 && d <= 31) dayColMap[d] = ci;
+      }
+    }
+    for (let ri = 12; ri <= 53; ri++) {
+      const row = data[ri];
+      if (!row) continue;
+      const gattung = row[1];
+      if (!gattung || String(gattung).trim() === '') continue;
+      let startDay = null, endDay = null;
+      for (const [dn, ci] of Object.entries(dayColMap)) {
+        const v1 = row[ci], v2 = row[ci+1];
+        const has = (v1 !== null && v1 !== undefined && v1 !== '') || (v2 !== null && v2 !== undefined && v2 !== '');
+        if (has) {
+          const d = parseInt(dn);
+          if (startDay === null || d < startDay) startDay = d;
+          if (endDay === null || d > endDay) endDay = d;
+        }
+      }
+      entries.push({
+        month: mNum, monthName: MONTH_NAMES[mNum], year,
+        bkp: row[0] ? String(row[0]).trim() : '',
+        gattung: String(gattung).trim(),
+        unternehmer: row[2] ? String(row[2]).trim() : '',
+        tel: row[3] ? String(row[3]).trim() : '',
+        mail: row[4] ? String(row[4]).trim() : '',
+        startDay, endDay,
+        startDate: startDay ? parseDate(year, mNum, startDay) : null,
+        endDate:   endDay   ? parseDate(year, mNum, endDay)   : null,
+      });
+    }
+  }
+  return entries;
+}
+
+// ══════════════════════════════════════════════════════════════
+// DASHBOARD UPDATE
+// ══════════════════════════════════════════════════════════════
+function updateDashboard() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const wStart = getMonday(today);
+  const wEnd   = addDays(wStart, 6);
+  const kw     = getISOWeek(today);
+
+  const thisWeek = allEntries.filter(e => {
+    if (!e.startDate && !e.endDate) return false;
+    const s = e.startDate || e.endDate;
+    const en = e.endDate || e.startDate;
+    return s <= wEnd && en >= wStart;
+  });
+
+  const starting = thisWeek.filter(e => e.startDate && e.startDate >= wStart && e.startDate <= wEnd);
+  const ending   = thisWeek.filter(e => e.endDate && e.endDate >= wStart && e.endDate <= wEnd);
+
+  const contractors = {};
+  thisWeek.forEach(e => {
+    if (e.unternehmer) {
+      if (!contractors[e.unternehmer]) contractors[e.unternehmer] = { ...e, gattungen: [] };
+      contractors[e.unternehmer].gattungen.push(e.gattung);
+    }
+  });
+  const cList = Object.values(contractors);
+
+  document.getElementById('stat-woche').textContent = thisWeek.length;
+  document.getElementById('stat-start').textContent = starting.length;
+  document.getElementById('stat-end').textContent   = ending.length;
+  document.getElementById('stat-un').textContent    = cList.length;
+  document.getElementById('dash-kw').textContent    = 'KW ' + kw;
+
+  const noBp = document.getElementById('dash-no-bp');
+  const cont = document.getElementById('dash-contractors');
+  noBp.style.display = 'none';
+  cont.style.display = 'block';
+
+  // Contractors
+  const cl = document.getElementById('dash-contractor-list');
+  if (cList.length === 0) {
+    cl.innerHTML = '<div class="empty" style="padding:20px"><div class="empty-icon">👷</div><div class="empty-sub">Keine aktiven Unternehmer diese Woche</div></div>';
+  } else {
+    cl.innerHTML = cList.map(c => `
+      <div class="contractor">
+        <div class="contractor-top">
+          <div class="contractor-name">🏗 ${c.unternehmer}</div>
+          <div class="contractor-actions">
+            ${c.tel ? `<a href="tel:${c.tel}" class="action-btn" style="background:#1A527612;color:var(--navy)">📞 ${c.tel}</a>` : ''}
+            ${c.mail ? `<a href="mailto:${c.mail}" class="action-btn" style="background:#E67E2212;color:var(--accent)">✉️ Mail</a>` : ''}
+          </div>
+        </div>
+        <div class="contractor-tags">${c.gattungen.map(g => `<span class="pill" style="background:#1A527618;color:var(--navy)">${g}</span>`).join('')}</div>
+      </div>
+    `).join('');
+  }
+
+  // Entries
+  const el = document.getElementById('dash-entry-list');
+  if (thisWeek.length === 0) {
+    el.innerHTML = '<div class="empty" style="padding:20px"><div class="empty-icon">📭</div><div class="empty-sub">Diese Woche keine Gewerke eingetragen</div></div>';
+  } else {
+    el.innerHTML = thisWeek.map((e,i) => entryHTML(e, today, wEnd, 'dash-'+i)).join('');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// BAUPROGRAMM TABS
+// ══════════════════════════════════════════════════════════════
+function bpTab(tab, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const today = new Date(); today.setHours(0,0,0,0);
+  const wStart = getMonday(today), wEnd = addDays(wStart,6);
+  let entries = [];
+
+  if (tab === 'woche') {
+    entries = allEntries.filter(e => {
+      if (!e.startDate && !e.endDate) return false;
+      const s = e.startDate || e.endDate, en = e.endDate || e.startDate;
+      return s <= wEnd && en >= wStart;
+    });
+  } else if (tab === 'start') {
+    entries = allEntries.filter(e => e.startDate && e.startDate >= wStart && e.startDate <= wEnd);
+  } else if (tab === 'end') {
+    entries = allEntries.filter(e => e.endDate && e.endDate >= wStart && e.endDate <= wEnd);
+  } else {
+    entries = allEntries;
+  }
+
+  const cont = document.getElementById('bp-content');
+  if (entries.length === 0) {
+    cont.innerHTML = '<div class="empty"><div class="empty-icon">📭</div><div class="empty-title">Keine Einträge</div><div class="empty-sub">In dieser Ansicht gibt es keine Gewerke</div></div>';
+    return;
+  }
+
+  if (tab === 'alle') {
+    const byMonth = {};
+    entries.forEach(e => {
+      const k = e.month;
+      if (!byMonth[k]) byMonth[k] = { name: e.monthName, list: [] };
+      byMonth[k].list.push(e);
+    });
+    cont.innerHTML = Object.entries(byMonth).sort(([a],[b])=>a-b).map(([m,g]) =>
+      `<div class="month-label">${g.name} 2026</div>` +
+      g.list.map((e,i) => entryHTML(e, today, wEnd, `all-${m}-${i}`)).join('')
+    ).join('');
+  } else {
+    cont.innerHTML = entries.map((e,i) => entryHTML(e, today, wEnd, 'bp-'+i)).join('');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// ENTRY HTML
+// ══════════════════════════════════════════════════════════════
+function statusPill(e, today, wEnd) {
+  if (!e.startDate && !e.endDate) return pill('var(--grey)', 'Kein Datum');
+  const s = e.startDate, en = e.endDate;
+  if (en && en < today) return pill('var(--grey)', 'Abgeschlossen');
+  if (s && s >= getMonday(today) && s <= wEnd) return pill('var(--green)', '▶ Startet');
+  if (en && en >= today && en <= wEnd) return pill('var(--accent)', '🏁 Endet');
+  if (s && s <= wEnd && en && en >= today) return pill('var(--blue)', '⚙ Aktiv');
+  return pill('var(--navy)', 'Geplant');
+}
+function pill(c, t) { return `<span class="pill" style="background:${c}22;color:${c};border:1px solid ${c}44">${t}</span>`; }
+
+function entryHTML(e, today, wEnd, id) {
+  return `
+  <div class="entry" onclick="toggleEntry('${id}')">
+    <div class="entry-top">
+      ${e.bkp ? `<span class="entry-bkp">${e.bkp}</span>` : ''}
+      <span class="entry-name">${e.gattung}</span>
+      ${statusPill(e, today, wEnd)}
+    </div>
+    ${e.unternehmer ? `<div class="entry-sub">🏗 ${e.unternehmer}</div>` : ''}
+    <div class="entry-detail" id="detail-${id}">
+      ${e.startDay ? `<div class="detail-item"><label>Start</label><span>${e.startDay}.${e.month}.</span></div>` : ''}
+      ${e.endDay   ? `<div class="detail-item"><label>Ende</label><span>${e.endDay}.${e.month}.</span></div>` : ''}
+      ${e.tel  ? `<div class="detail-item"><label>Telefon</label><a href="tel:${e.tel}">${e.tel}</a></div>` : ''}
+      ${e.mail ? `<div class="detail-item"><label>Mail</label><a href="mailto:${e.mail}">${e.mail}</a></div>` : ''}
+    </div>
+  </div>`;
+}
+
+function toggleEntry(id) {
+  const d = document.getElementById('detail-' + id);
+  if (d) d.classList.toggle('open');
+}
+
+// ══════════════════════════════════════════════════════════════
+// VOR ORT
+// ══════════════════════════════════════════════════════════════
+function vorortTab(tab, btn) {
+  document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  document.getElementById('vorort-erfassen').style.display = tab === 'erfassen' ? 'block' : 'none';
+  document.getElementById('vorort-log').style.display = tab === 'log' ? 'block' : 'none';
+  if (tab === 'log') renderFotoLog();
+}
+
+function renderObjekte(filter) {
+  const list = document.getElementById('objekt-list');
+  const f = filter.toLowerCase();
+  const filtered = objekte.filter(o =>
+    o.name.toLowerCase().includes(f) || o.adresse.toLowerCase().includes(f)
+  );
+  list.innerHTML = filtered.map(o => `
+    <div class="objekt-item ${currentObjekt && currentObjekt.id === o.id ? 'selected' : ''}" onclick="selectObjekt(${o.id})">
+      <span class="objekt-icon">🏠</span>
+      <div><div class="objekt-name">${o.name}</div><div class="objekt-addr">${o.adresse}</div></div>
+    </div>
+  `).join('');
+  if (filtered.length === 0 && filter) {
+    list.innerHTML = `<div style="text-align:center;padding:12px;color:var(--muted);font-size:12px">Kein Objekt gefunden — <b onclick="neuesObjektMitName('${filter}')" style="cursor:pointer;color:var(--navy)">"${filter}" hinzufügen</b></div>`;
+  }
+}
+
+function filterObjekte(val) { renderObjekte(val); }
+
+function selectObjekt(id) {
+  currentObjekt = objekte.find(o => o.id === id);
+  renderObjekte(document.getElementById('objekt-search').value);
+  document.getElementById('foto-card').style.display = 'block';
+  document.getElementById('foto-objekt-name').textContent = currentObjekt.name;
+  document.getElementById('foto-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function neuesObjekt() {
+  const name = prompt('Objektname oder Adresse:');
+  if (!name) return;
+  const adresse = prompt('Adresse (PLZ Ort):') || '';
+  const obj = { id: Date.now(), name: name.trim(), adresse: adresse.trim(), kuerzel: name.trim().substring(0,3).toUpperCase() };
+  objekte.push(obj);
+  localStorage.setItem('objekte', JSON.stringify(objekte));
+  renderObjekte('');
+  showToast('✓ Objekt hinzugefügt');
+}
+
+function neuesObjektMitName(name) {
+  const adresse = prompt(`Adresse für "${name}" (PLZ Ort):`) || '';
+  const obj = { id: Date.now(), name: name.trim(), adresse: adresse.trim(), kuerzel: name.trim().substring(0,3).toUpperCase() };
+  objekte.push(obj);
+  localStorage.setItem('objekte', JSON.stringify(objekte));
+  document.getElementById('objekt-search').value = '';
+  renderObjekte('');
+  showToast('✓ Objekt hinzugefügt');
+}
+
+function selectKat(btn, kat) {
+  currentKat = kat;
+  document.querySelectorAll('.kat-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+}
+
+function handleFoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    currentFotoData = e.target.result;
+    const prev = document.getElementById('foto-preview');
+    prev.src = currentFotoData;
+    prev.style.display = 'block';
+    document.getElementById('foto-placeholder').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+
+function saveFoto() {
+  if (!currentObjekt) { 
+    showToast('⚠ Bitte zuerst ein Objekt wählen'); 
+    return; 
+  }
+  
+  var desc   = document.getElementById('foto-desc').value.trim();
+  var gewerk = document.getElementById('foto-gewerk').value.trim();
+  var now    = new Date();
+
+  var entry = {
+    id:       Date.now(),
+    objekt:   currentObjekt.name,
+    objektId: currentObjekt.id,
+    kat:      currentKat,
+    desc:     desc || '–',
+    gewerk:   gewerk,
+    foto:     currentFotoData,
+    datum:    now.toLocaleDateString('de-CH'),
+    zeit:     now.toLocaleTimeString('de-CH', { hour:'2-digit', minute:'2-digit' }),
+    ts:       now.getTime(),
+  };
+
+  fotoLog.unshift(entry);
+  try { localStorage.setItem('fotoLog', JSON.stringify(fotoLog)); } catch(e) {}
+
+  // Build OneDrive link
+  var objektName = currentObjekt.name;
+  var baseUrl = 'https://kablan-my.sharepoint.com/personal/u_fahrni_kablan_ch/_layouts/15/onedrive.aspx?id=%2Fpersonal%2Fu_fahrni_kablan_ch%2FDocuments%2F04_RF_NR%2F';
+  var oneDriveLink = baseUrl + encodeURIComponent(objektName) + '%2FFotos';
+
+  // Update modal content
+  document.getElementById('modal-objekt').textContent = objektName;
+  document.getElementById('modal-kat').textContent    = currentKat;
+  document.getElementById('modal-desc').textContent   = desc || '–';
+  document.getElementById('modal-link').href          = oneDriveLink;
+
+  var prev = document.getElementById('modal-foto-prev');
+  if (currentFotoData) { prev.src = currentFotoData; prev.style.display = 'block'; }
+  else { prev.style.display = 'none'; }
+
+  // Show modal
+  var modal = document.getElementById('foto-saved-modal');
+  modal.style.display     = 'flex';
+  modal.style.position    = 'fixed';
+  modal.style.top         = '0';
+  modal.style.left        = '0';
+  modal.style.right       = '0';
+  modal.style.bottom      = '0';
+  modal.style.background  = 'rgba(0,0,0,0.5)';
+  modal.style.zIndex      = '9999';
+  modal.style.alignItems  = 'center';
+  modal.style.justifyContent = 'center';
+  modal.style.padding     = '16px';
+
+  // Reset form
+  document.getElementById('foto-desc').value = '';
+  document.getElementById('foto-gewerk').value = '';
+  document.getElementById('foto-preview').style.display = 'none';
+  document.getElementById('foto-placeholder').style.display = 'flex';
+  document.getElementById('foto-input').value = '';
+  currentFotoData = null;
+
+  renderDashFotos();
+}
+
+function renderFotoLog() {
+  const list = document.getElementById('foto-log-list');
+  if (fotoLog.length === 0) {
+    list.innerHTML = '<div class="empty"><div class="empty-icon">🗂</div><div class="empty-title">Noch kein Verlauf</div><div class="empty-sub">Erfasse Fotos im Tab "Erfassen"</div></div>';
+    return;
+  }
+  list.innerHTML = fotoLog.map(f => {
+    const katColors = { Mangel:'var(--red)', Rapport:'var(--navy)', Abnahme:'var(--green)', Allgemein:'var(--grey)' };
+    const c = katColors[f.kat] || 'var(--grey)';
+    return `
+    <div class="foto-entry">
+      ${f.foto
+        ? `<img class="foto-thumb" src="${f.foto}" alt="Foto"/>`
+        : `<div class="foto-thumb-placeholder">📷</div>`}
+      <div class="foto-info">
+        <span class="foto-kat" style="color:${c}">${f.kat}</span>
+        <div class="foto-desc">${f.desc}</div>
+        <div class="foto-meta">🏠 ${f.objekt} · ${f.datum} ${f.zeit}${f.gewerk ? ' · ' + f.gewerk : ''}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderDashFotos() {
+  const list = document.getElementById('dash-foto-list');
+  const recent = fotoLog.slice(0, 3);
+  if (recent.length === 0) {
+    list.innerHTML = '<div class="empty"><div class="empty-icon">📷</div><div class="empty-title">Noch keine Fotos</div><div class="empty-sub">Geh auf "Vor Ort" um Fotos zu erfassen</div></div>';
+    return;
+  }
+  const katColors = { Mangel:'var(--red)', Rapport:'var(--navy)', Abnahme:'var(--green)', Allgemein:'var(--grey)' };
+  list.innerHTML = recent.map(f => {
+    const c = katColors[f.kat] || 'var(--grey)';
+    return `
+    <div class="foto-entry">
+      ${f.foto ? `<img class="foto-thumb" src="${f.foto}" alt="Foto"/>` : `<div class="foto-thumb-placeholder">📷</div>`}
+      <div class="foto-info">
+        <span class="foto-kat" style="color:${c}">${f.kat}</span>
+        <div class="foto-desc">${f.desc}</div>
+        <div class="foto-meta">🏠 ${f.objekt} · ${f.datum} ${f.zeit}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════════════════
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ══════════════════════════════════════════════════════════════
+// START
+// ══════════════════════════════════════════════════════════════
+init();
+</script>
+</body>
+</html>
